@@ -1,0 +1,8 @@
+#!/bin/bash
+#
+# SQL functions
+#
+
+envOracle() {
+    [ -x /etc/oraclerc ] && source /etc/oraclerc || raiseErr 10 "/etc/oraclerc file not found, please contact sysadmin"
+}

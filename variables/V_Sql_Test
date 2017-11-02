@@ -1,0 +1,2 @@
+OraclePath=/u01/app/oracle/product/8.1.7.0.1/bin
+OracleLogin=DB_login/DB_passwd@DB_cluster_name

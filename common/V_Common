@@ -1,0 +1,11 @@
+#!/bin/bash
+#
+# ToolBox common variables
+#
+
+LOCKDIR=/var/local/lock/$(basename $0)
+PROCESS=$(basename $0)
+MYPID=$$
+PROGDIR=$(dirname $0)
+MYMUTTRC=/tmp/$PROCESS-muttrc-$$
+DOLOCKEXIT=true

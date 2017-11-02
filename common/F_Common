@@ -1,0 +1,176 @@
+#!/bin/bash
+#
+# ToolBox common functions
+#
+
+# Sourced from
+# http://www.crypticide.com/dropsafe/article/1507
+getLock() {
+    if mkdir -m 0755 $LOCKDIR >/dev/null 2>&1
+    then # lockdir correctly created
+        date > $LOCKDIR/date
+        echo $$ > $LOCKDIR/pid
+        BADLOCK=false # for the waiting loop
+    else  # lock already exists
+	# by default, exit (DOLOCKEXIT is true)
+	$DOLOCKEXIT && raiseErr 2 "$LOCKDIR already exists, please contact your sysadmin" || echo -n ""
+    fi
+}
+
+freeLock() {
+    if rm -r $LOCKDIR
+    then # correct lock removing
+        feedSyslog "removing lock ok"
+    else # problem
+        raiseErr 2 "Problem deleting $LOCKDIR, please contact your sysadmin"
+    fi
+}
+
+# Push message in syslog
+feedSyslog() {
+    logger -t "$PROCESS[$MYPID]" "$1"
+}
+
+# Simply raise an error in syslog and then exit with given errorcode
+raiseErr() {
+    feedSyslog "ERROR: $2"
+    exit $1
+}
+
+# Control if a given command exists
+requireCmd() {
+    if [ -n "$1" ] ; then
+	CMD=`which $1`
+	if [ -x "$CMD" ] ; then
+	    feedSyslog "Command [ $CMD ] : OK"
+	else
+	    raiseErr 1 "Command [ $1 ] unknown"
+	fi
+    fi
+}
+
+# Control that a variable isn't empty (or is not set)
+requireVar() {
+    if [ -z "${!1}" ] ; then
+	raiseErr 1 "Variable $1 not set or empty"
+    else
+	feedSyslog "$1 = ${!1}"
+    fi
+}
+
+# Generate muttrc file that will be used to send mail
+genMuttrc() {
+    requireVar MYMUTTRC
+    requireVar HOSTNAME
+    requireCmd host
+    requireCmd awk
+    requireCmd id
+    U=$(id --user --name)
+    H=$(host $HOSTNAME | awk '{print $1}')
+    S=$U\@$H
+    cat << EOF > ${MYMUTTRC}
+#set reverse_name
+#my_hdr From: NoReply <noreply@domain.fqdn>
+set realname="NoReply"
+set from="noreply@domain.fqdn"
+set use_from=yes
+my_hdr Batch-Sender: $S
+EOF
+}
+
+# Control if file given as parameter exist and is readable
+checkFile() {
+    test -r $1 || raiseErr 1 "$1 do not exists or unreadable"
+}
+
+# Calculates the execution time from a timestamp passed in parameter : "end timestamp - start timestamp"
+GetDuration() {
+hours=`expr $1 / 3600`
+minutes=`expr $1 % 3600 / 60`
+seconds=`expr $1 % 3600 % 60`
+
+[ "$hours" -eq "0" ] && { hours="" ; } || { hours="${hours}h" ; }
+[ "$minutes" -eq "0" ] && { minutes="" ; } || { minutes="${minutes}min" ; }
+[ "$seconds" -eq "0" ] && { seconds="" ; } || { seconds="${seconds}s" ; }
+
+echo "duration : ${hours}${minutes} ${seconds}"
+}
+
+# Test working days
+JourOuvre(){
+MoisAnnee=`date +%m.%Y`
+NombreJourOuvre=0
+TotalJour=1
+JouraTester=`date --date "${TotalJour}" +%u`
+
+while [ $TotalJour -le `date +%d` ]
+do
+        if [ "${JouraTester}" -lt "6" ]
+        then
+                if [ $TotalJour -lt 10 ]
+                then
+                        TotalJour=0${TotalJour}
+                fi
+                # Check that's not a holiday, otherwise, count it :
+                if [ -z "`calendar -t ${TotalJour}.${MoisAnnee} -l 0 -f /usr/local/share/toolbox/common/calendar.jferies`" ]
+		then
+			NombreJourOuvre=`expr $NombreJourOuvre + 1`
+                fi
+		JouraTester=`expr $JouraTester + 1`
+        else
+        JouraTester=1
+        TotalJour=`expr $TotalJour + 1`
+        fi
+TotalJour=`expr $TotalJour + 1`
+done
+echo $NombreJourOuvre
+}
+
+CheckIfOpen()
+{
+                if [ $1 -lt 10 ]
+                then
+                        DateDuJour=0${1}
+                fi
+                if [ "`date --date ${mois}/${1}/${annee} +%u`" -lt "6" ]
+                then
+                        if [ -z "`calendar -t ${1}.${mois}.${annee} -l 0 -f /usr/local/share/toolbox/common/calendar.jferies`" ]
+                        then
+                        echo "1"
+                        else
+                        echo "0"
+                        fi
+                else
+                echo "0"
+                fi
+}
+
+ReturnIfOpen()
+{
+mois=`date +%m`
+annee=`date +%Y`
+DateDuJour=`date +%d`
+DateTransit=$1
+
+if [ "$DateTransit" -gt "$DateDuJour" ]
+then
+        echo "1"
+        exit 1
+fi
+
+while [ "$DateTransit" -le "$DateDuJour" ]
+do
+
+        if [ "`CheckIfOpen $DateTransit`" -eq "1" ]
+        then
+                if [ "$DateTransit" -eq "$DateDuJour" ]
+                then
+                echo "0"
+                else
+                echo "1"
+                exit 1
+                fi
+        fi
+DateTransit=`expr $DateTransit + 1`
+done
+}

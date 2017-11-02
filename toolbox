@@ -1,0 +1,44 @@
+#!/bin/bash
+#
+# ToolBox
+#
+# Set of tools used by many scripts for different uses at work. The call
+# is made as follows:
+#
+#    source /usr/local/share/toolbox/toolbox -l LIB -e ENV
+#
+# LIB : which library type to use; for example: sql, mail, ftp
+# ENV : working environment, allows the variables to be defined according
+#       to whether you're developing, testing or producing.
+
+
+# Constants
+TB_PATH=/usr/local/share/toolbox/
+TB_NAME=toolbox
+TB_PNUM=$#
+
+# Sourcing common functions and variables
+source $TB_PATH/common/F_Common
+source $TB_PATH/common/V_Common
+
+# If arguments passed to the script, deal with it
+while getopts ":l:e:" OPTIONS
+do
+    case $OPTIONS in
+	l) # Which library ?
+	    TB_LIB=$OPTARG
+	    ;;
+	e) # Which environment ?
+	    TB_ENV=$OPTARG
+	    ;;
+    esac
+done
+
+# We source requested files using the given parameters (if they were fed)
+[ -n "$TB_LIB" -a -n "$TB_ENV" ] && {
+TB_SPECIAL_F=$TB_PATH/functions/F_${TB_LIB}
+TB_SPECIAL_V=$TB_PATH/variables/V_${TB_LIB}_${TB_ENV}
+# If the files don't exist, no need to source them...
+[ -e $TB_SPECIAL_F ] && source $TB_SPECIAL_F || feedSyslog "NOTICE: $TB_SPECIAL_F not found"
+[ -e $TB_SPECIAL_V ] && source $TB_SPECIAL_V || feedSyslog "NOTICE: $TB_SPECIAL_V not found"
+}
